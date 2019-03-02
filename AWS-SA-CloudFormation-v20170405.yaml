@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: PoC SA Assessment Stack
+Description: Production Stack for SA Assessment
 
 Parameters:
 
@@ -86,7 +86,7 @@ Resources:
       - Key: Name
         Value: !Join ['-', [IGW, !Ref 'CandidateName']]
 
-  SANetworkACL:
+  SANetworkACLPublic:
     Type: AWS::EC2::NetworkAcl
     Properties:
       VpcId: !Ref 'SAVPC'
@@ -94,7 +94,18 @@ Resources:
       - Key: environment
         Value: sa-assignment
       - Key: Name
-        Value: !Join ['-', [NACL, !Ref 'CandidateName']]
+        Value: !Join ['-', [PublicNACL, !Ref 'CandidateName']]
+
+
+  SANetworkACLPrivate:
+    Type: AWS::EC2::NetworkAcl
+    Properties:
+      VpcId: !Ref 'SAVPC'
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [PrivateNACL, !Ref 'CandidateName']]
 
   SARoutePublic:
     Type: AWS::EC2::RouteTable
@@ -106,7 +117,7 @@ Resources:
       - Key: Name
         Value: !Join ['-', [PublicRoute, !Ref 'CandidateName']]
 
-  SARoutePrivate:
+  SARoutePrivateA:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref 'SAVPC'
@@ -114,7 +125,18 @@ Resources:
       - Key: environment
         Value: sa-assignment
       - Key: Name
-        Value: !Join ['-', [PrivateRoute, !Ref 'CandidateName']]
+        Value: !Join ['-', [PrivateRouteA, !Ref 'CandidateName']]
+
+  SARoutePrivateB:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref 'SAVPC'
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [PrivateRouteB, !Ref 'CandidateName']]
+
 
   SAInstance1:
     Type: AWS::EC2::Instance
@@ -131,19 +153,66 @@ Resources:
       - Key: Name
         Value: !Join ['-', [Instance1, !Ref 'CandidateName']]
       NetworkInterfaces:
+      - AssociatePublicIpAddress: 'false'
+        DeleteOnTermination: 'true'
+        Description: Primary network interface
+        DeviceIndex: 0
+        SubnetId: !Ref 'PrivateSubnetA'
+        GroupSet: [!Ref 'SASGapp']
+    DependsOn: NatGatewayA
+
+  SAInstance2:
+    Type: AWS::EC2::Instance
+    Properties:
+      DisableApiTermination: 'false'
+      InstanceInitiatedShutdownBehavior: stop
+      ImageId: ami-70edb016
+      InstanceType: t2.micro
+      Monitoring: 'false'
+      UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [Instance2, !Ref 'CandidateName']]
+      NetworkInterfaces:
+      - AssociatePublicIpAddress: 'false'
+        DeleteOnTermination: 'true'
+        Description: Primary network interface
+        DeviceIndex: 0
+        SubnetId: !Ref 'PrivateSubnetB'
+        GroupSet: [!Ref 'SASGapp']
+    DependsOn: NatGatewayB
+
+  Bastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      DisableApiTermination: 'false'
+      InstanceInitiatedShutdownBehavior: stop
+      ImageId: ami-70edb016
+      InstanceType: t2.micro
+      Monitoring: 'false'
+      KeyName: sa-key
+      UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [Bastion, !Ref 'CandidateName']]
+      NetworkInterfaces:
       - AssociatePublicIpAddress: 'true'
         DeleteOnTermination: 'true'
         Description: Primary network interface
         DeviceIndex: 0
         SubnetId: !Ref 'PublicSubnetA'
-        GroupSet: [!Ref 'SASGapp']
+        GroupSet: [!Ref 'SASGBastion']
     DependsOn: SAIGWAttachment
 
   SAelb:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
       Subnets: [!Ref 'PublicSubnetA', !Ref 'PublicSubnetB']
-      Instances: [!Ref 'SAInstance1']
+      Instances: [!Ref 'SAInstance1', !Ref 'SAInstance2']
       SecurityGroups: [!Ref 'SASGELB']
       Listeners:
       - LoadBalancerPort: '80'
@@ -187,13 +256,33 @@ Resources:
         FromPort: 80
         ToPort: 80
         SourceSecurityGroupId: !Ref 'SASGELB'
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        SourceSecurityGroupId: !Ref 'SASGBastion'
       Tags:
       - Key: environment
         Value: sa-assignment
       - Key: Name
         Value: AppServerSecurityGroup
 
-  SANACLEntry1:
+  SASGBastion:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SA Assignment - App server security group
+      VpcId: !Ref 'SAVPC'
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: BastionSecurityGroup
+
+  SANACLEntry1Public:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
       CidrBlock: 0.0.0.0/0
@@ -201,39 +290,59 @@ Resources:
       Protocol: '-1'
       RuleAction: allow
       RuleNumber: '100'
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPublic'
 
-  SANACLEntry2:
+  SANACLEntry2Public:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
       CidrBlock: 0.0.0.0/0
       Protocol: '-1'
       RuleAction: allow
       RuleNumber: '100'
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPublic'
+
+
+  SANACLEntry1Private:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Egress: 'true'
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+      NetworkAclId: !Ref 'SANetworkACLPrivate'
+
+  SANACLEntry2Private:
+    Type: AWS::EC2::NetworkAclEntry
+    Properties:
+      CidrBlock: 0.0.0.0/0
+      Protocol: '-1'
+      RuleAction: allow
+      RuleNumber: '100'
+      NetworkAclId: !Ref 'SANetworkACLPrivate'
 
   subnetacl1:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPublic'
       SubnetId: !Ref 'PublicSubnetA'
 
   subnetacl2:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPublic'
       SubnetId: !Ref 'PublicSubnetB'
 
   subnetacl3:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPrivate'
       SubnetId: !Ref 'PrivateSubnetA'
 
   subnetacl4:
     Type: AWS::EC2::SubnetNetworkAclAssociation
     Properties:
-      NetworkAclId: !Ref 'SANetworkACL'
+      NetworkAclId: !Ref 'SANetworkACLPrivate'
       SubnetId: !Ref 'PrivateSubnetB'
 
   SAIGWAttachment:
@@ -257,13 +366,13 @@ Resources:
   subnetRoutePrivateA:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref 'SARoutePrivate'
+      RouteTableId: !Ref 'SARoutePrivateA'
       SubnetId: !Ref 'PrivateSubnetA'
 
   subnetRoutePrivateB:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
-      RouteTableId: !Ref 'SARoutePrivate'
+      RouteTableId: !Ref 'SARoutePrivateB'
       SubnetId: !Ref 'PrivateSubnetB'
 
   publicroute:
@@ -274,6 +383,59 @@ Resources:
       GatewayId: !Ref 'SAIGW'
     DependsOn: SAIGW
 
+  EIPA:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  EIPB:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NatGatewayA:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+        - EIPA
+        - AllocationId
+      SubnetId: !Ref 'PublicSubnetA'
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [NatGatewayA, !Ref 'CandidateName']]
+
+  NatGatewayB:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId:
+        Fn::GetAtt:
+        - EIPB
+        - AllocationId
+      SubnetId: !Ref 'PublicSubnetB'
+      Tags:
+      - Key: environment
+        Value: sa-assignment
+      - Key: Name
+        Value: !Join ['-', [NatGatewayB, !Ref 'CandidateName']]
+
+  privaterouteA:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref 'SARoutePrivateA'
+      NatGatewayId: !Ref 'NatGatewayA'
+    DependsOn: NatGatewayA
+
+  privaterouteB:
+    Type: AWS::EC2::Route
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref 'SARoutePrivateB'
+      NatGatewayId: !Ref 'NatGatewayB'
+    DependsOn: NatGatewayB
 
 Outputs:
 
