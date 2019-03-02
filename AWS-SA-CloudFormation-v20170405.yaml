@@ -137,52 +137,33 @@ Resources:
       - Key: Name
         Value: !Join ['-', [PrivateRouteB, !Ref 'CandidateName']]
 
-
-  SAInstance1:
-    Type: AWS::EC2::Instance
+  AppLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      DisableApiTermination: 'false'
-      InstanceInitiatedShutdownBehavior: stop
       ImageId: ami-70edb016
       InstanceType: t2.micro
-      Monitoring: 'false'
+      KeyName: sa-key
+      InstanceMonitoring: 'false'
+      AssociatePublicIpAddress: 'false'
       UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
-      Tags:
-      - Key: environment
-        Value: sa-assignment
-      - Key: Name
-        Value: !Join ['-', [Instance1, !Ref 'CandidateName']]
-      NetworkInterfaces:
-      - AssociatePublicIpAddress: 'false'
-        DeleteOnTermination: 'true'
-        Description: Primary network interface
-        DeviceIndex: 0
-        SubnetId: !Ref 'PrivateSubnetA'
-        GroupSet: [!Ref 'SASGapp']
-    DependsOn: NatGatewayA
+      SecurityGroups:
+      - !Ref 'SASGapp'
 
-  SAInstance2:
-    Type: AWS::EC2::Instance
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
     Properties:
-      DisableApiTermination: 'false'
-      InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-70edb016
-      InstanceType: t2.micro
-      Monitoring: 'false'
-      UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
-      Tags:
-      - Key: environment
-        Value: sa-assignment
-      - Key: Name
-        Value: !Join ['-', [Instance2, !Ref 'CandidateName']]
-      NetworkInterfaces:
-      - AssociatePublicIpAddress: 'false'
-        DeleteOnTermination: 'true'
-        Description: Primary network interface
-        DeviceIndex: 0
-        SubnetId: !Ref 'PrivateSubnetB'
-        GroupSet: [!Ref 'SASGapp']
-    DependsOn: NatGatewayB
+      AvailabilityZones:
+      - eu-west-1a
+      - eu-west-1b
+      VPCZoneIdentifier:
+      - !Ref PrivateSubnetA
+      - !Ref PrivateSubnetB
+      LaunchConfigurationName: !Ref 'AppLaunchConfiguration'
+      MinSize: '1'
+      MaxSize: '2'
+      LoadBalancerNames:
+      - !Ref SAelb
+    DependsOn: [ AppLaunchConfiguration, NatGatewayA, NatGatewayB]
 
   Bastion:
     Type: AWS::EC2::Instance
@@ -212,8 +193,8 @@ Resources:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
       Subnets: [!Ref 'PublicSubnetA', !Ref 'PublicSubnetB']
-      Instances: [!Ref 'SAInstance1', !Ref 'SAInstance2']
       SecurityGroups: [!Ref 'SASGELB']
+      CrossZone: 'true'
       Listeners:
       - LoadBalancerPort: '80'
         InstancePort: '80'
