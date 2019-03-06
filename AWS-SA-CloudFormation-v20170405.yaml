@@ -3,16 +3,110 @@ Description: Production Stack for SA Assessment
 
 Parameters:
 
-
   CandidateName:
     Description: 'Please input your first and last name:'
     Type: String
     MaxLength: '50'
     MinLength: '3'
-    ConstraintDescription: Please input your full name.
+    ConstraintDescription: 'Please input your full name.'
+
+  AppInstanceType:
+    Description: 'Please input the Instance Type for the Web Application:'
+    Type: String
+    Default: t2.micro
+    ConstraintDescription: 'Must be a valid EC2 instance type.'
+
+  BastionInstanceType:
+    Description: 'Please input the Instance Type for the Bastion:'
+    Type: String
+    Default: t2.micro
+    ConstraintDescription: 'Must be a valid EC2 instance type.'
+
+  AppASGMinSize:
+    Description: 'Please input min number of App Instance for the Autoscaling Group:'
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 3
+    ConstraintDescription: 'Must be >= 1'
+
+  AppASGMaxSize:
+    Description: 'Please input min number of App Instance for the Autoscaling Group:'
+    Type: Number
+    Default: 1
+    MinValue: 1
+    MaxValue: 6
+    ConstraintDescription: 'Must be >= AppASGMinSize parameter'
+
+  CreateBastion:
+    Description: 'Do you want to create a Bastion Host?'
+    Type: String
+    Default: 'yes'
+    AllowedValues:
+      - 'yes'
+      - 'no'
+    ConstraintDescription: 'Must specify yes or no.'
+
+  MultiNATGateway:
+    Description: 'Do you want to create multiple NAT Gateway (1 for each AZ?)?'
+    Type: String
+    Default: 'yes'
+    AllowedValues:
+    - 'yes'
+    - 'no'
+    ConstraintDescription: 'Must specify yes or no.'
+
+Conditions:
+  CreateBastionResource: !Equals [ !Ref CreateBastion, 'yes' ]
+  MultiNATGatewayResource: !Equals [ !Ref MultiNATGateway, 'yes' ]
+  SingleNATGatewayResource: !Equals [ !Ref MultiNATGateway, 'no' ]
+
+Mappings:
+
+
+  AWSRegion2AMI:
+    us-east-1: # US East (N. Virginia)
+      AMIApp: ami-0b33d91d
+      AMIBastion: ami-0b33d91d
+    us-east-2: # US East (Ohio)
+      AMIApp: ami-c55673a0
+      AMIBastion: ami-c55673a0
+    us-west-2: # US West (Oregon)
+      AMIApp: ami-f173cc91
+      AMIBastion: ami-f173cc91
+    us-west-1: # US West (N. California)
+      AMIApp: ami-165a0876
+      AMIBastion: ami-165a0876
+    eu-west-1: # EU (Ireland)
+      AMIApp: ami-70edb016
+      AMIBastion: ami-70edb016
+    eu-west-2: # EU (London)
+      AMIApp: ami-f1949e95
+      AMIBastion: ami-f1949e95
+    eu-central-1: # EU (Frankfurt)
+      AMIApp: ami-af0fc0c0
+      AMIBastion: ami-af0fc0c0
+    ap-southeast-1: # Asia Pacific (Singapore)
+      AMIApp: ami-dc9339bf
+      AMIBastion: ami-dc9339bf
+    ap-northeast-2: # Asia Pacific (Seoul)
+      AMIApp: ami-dac312b4
+      AMIBastion: ami-dac312b4
+    ap-northeast-1: # Asia Pacific (Tokyo)
+      AMIApp: ami-56d4ad31
+      AMIBastion: ami-56d4ad31
+    ap-southeast-2: # Asia Pacific (Sydney)
+      AMIApp: ami-1c47407f
+      AMIBastion: ami-1c47407f
+    ap-south-1: # Asia Pacific (Mumbai)
+      AMIApp: ami-f9daac96
+      AMIBastion: ami-f9daac96
+    sa-east-1: # South America (São Paulo)
+      AMIApp: ami-80086dec
+      AMIBastion: ami-80086dec
+
 
 Resources:
-
 
   SAVPC:
     Type: AWS::EC2::VPC
@@ -31,7 +125,9 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: 10.0.0.0/24
-      AvailabilityZone: eu-west-1a
+      AvailabilityZone: !Select
+          - 0
+          - Fn::GetAZs: !Ref 'AWS::Region'
       MapPublicIpOnLaunch: 'True'
       VpcId: !Ref 'SAVPC'
       Tags:
@@ -44,7 +140,9 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: 10.0.1.0/24
-      AvailabilityZone: eu-west-1b
+      AvailabilityZone: !Select
+      - 1
+      - Fn::GetAZs: !Ref 'AWS::Region'
       MapPublicIpOnLaunch: 'True'
       VpcId: !Ref 'SAVPC'
       Tags:
@@ -57,7 +155,9 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: 10.0.2.0/24
-      AvailabilityZone: eu-west-1a
+      AvailabilityZone: !Select
+      - 0
+      - Fn::GetAZs: !Ref 'AWS::Region'
       VpcId: !Ref 'SAVPC'
       Tags:
       - Key: environment
@@ -69,7 +169,9 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       CidrBlock: 10.0.3.0/24
-      AvailabilityZone: eu-west-1b
+      AvailabilityZone: !Select
+      - 1
+      - Fn::GetAZs: !Ref 'AWS::Region'
       VpcId: !Ref 'SAVPC'
       Tags:
       - Key: environment
@@ -140,41 +242,69 @@ Resources:
   AppLaunchConfiguration:
     Type: AWS::AutoScaling::LaunchConfiguration
     Properties:
-      ImageId: ami-70edb016
-      InstanceType: t2.micro
-      #KeyName: sa-key
+      ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", AMIApp]
+      InstanceType: !Ref 'AppInstanceType'
+      KeyName: sa-key
       InstanceMonitoring: 'false'
       AssociatePublicIpAddress: 'false'
       UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
       SecurityGroups:
       - !Ref 'SASGapp'
 
-  AppAutoScalingGroup:
+  AppAutoScalingGroupMultiNATGW:
     Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: MultiNATGatewayResource
     Properties:
       AvailabilityZones:
-      - eu-west-1a
-      - eu-west-1b
+      - !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      - !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
       VPCZoneIdentifier:
       - !Ref PrivateSubnetA
       - !Ref PrivateSubnetB
       LaunchConfigurationName: !Ref 'AppLaunchConfiguration'
-      MinSize: '1'
-      MaxSize: '1'
+      MinSize: !Ref 'AppASGMinSize'
+      MaxSize: !Ref 'AppASGMaxSize'
       LoadBalancerNames:
       - !Ref SAelb
     DependsOn: [ AppLaunchConfiguration, NatGatewayA, NatGatewayB]
 
+
+  AppAutoScalingGroupSingleNATGW:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Condition: SingleNATGatewayResource
+    Properties:
+      AvailabilityZones:
+      - !Select
+        - 0
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      - !Select
+        - 1
+        - Fn::GetAZs: !Ref 'AWS::Region'
+      VPCZoneIdentifier:
+      - !Ref PrivateSubnetA
+      - !Ref PrivateSubnetB
+      LaunchConfigurationName: !Ref 'AppLaunchConfiguration'
+      MinSize: !Ref 'AppASGMinSize'
+      MaxSize: !Ref 'AppASGMaxSize'
+      LoadBalancerNames:
+      - !Ref SAelb
+    DependsOn: [ AppLaunchConfiguration, NatGatewayA ]
+
   Bastion:
     Type: AWS::EC2::Instance
+    Condition: CreateBastionResource
     Properties:
       DisableApiTermination: 'false'
       InstanceInitiatedShutdownBehavior: stop
-      ImageId: ami-70edb016
-      InstanceType: t2.micro
+      ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", AMIBastion]
+      InstanceType: !Ref 'BastionInstanceType'
       Monitoring: 'false'
-      #KeyName: sa-key
-      UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
+      KeyName: sa-key
+      #UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
       Tags:
       - Key: environment
         Value: sa-assignment
@@ -416,6 +546,7 @@ Resources:
 
   NatGatewayB:
     Type: AWS::EC2::NatGateway
+    Condition: MultiNATGatewayResource
     Properties:
       AllocationId:
         Fn::GetAtt:
@@ -436,8 +567,18 @@ Resources:
       NatGatewayId: !Ref 'NatGatewayA'
     DependsOn: NatGatewayA
 
-  privaterouteB:
+  singleGWPrivaterouteB:
     Type: AWS::EC2::Route
+    Condition: SingleNATGatewayResource
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      RouteTableId: !Ref 'SARoutePrivateB'
+      NatGatewayId: !Ref 'NatGatewayA'
+    DependsOn: NatGatewayA
+
+  multiGWPrivaterouteB:
+    Type: AWS::EC2::Route
+    Condition: MultiNATGatewayResource
     Properties:
       DestinationCidrBlock: 0.0.0.0/0
       RouteTableId: !Ref 'SARoutePrivateB'
