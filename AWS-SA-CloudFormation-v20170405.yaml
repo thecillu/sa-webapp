@@ -305,6 +305,7 @@ Resources:
       - !Ref PrivateSubnetB
       LaunchConfigurationName: !Ref 'AppLaunchConfiguration'
       MinSize: !Ref 'AppASGMinSize'
+      DesiredCapacity: !Ref 'AppASGDesiredSize'
       MaxSize: !Ref 'AppASGMaxSize'
       LoadBalancerNames:
       - !Ref SAelb
@@ -543,6 +544,7 @@ Resources:
 
   EIPB:
     Type: AWS::EC2::EIP
+    Condition: MultiNATGatewayResource
     Properties:
       Domain: vpc
 
