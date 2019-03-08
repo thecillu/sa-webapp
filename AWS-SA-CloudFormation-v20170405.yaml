@@ -22,19 +22,33 @@ Parameters:
     Default: t2.micro
     ConstraintDescription: 'Must be a valid EC2 instance type.'
 
+  KeyName:
+    Description: 'Please input the Key Pair name:'
+    Type: String
+    Default: ''
+    ConstraintDescription: 'Must be a valid Key pair name in the Region.'
+
   AppASGMinSize:
     Description: 'Please input min number of App Instance for the Autoscaling Group:'
     Type: Number
-    Default: 1
-    MinValue: 1
+    Default: 2
+    MinValue: 2
     MaxValue: 3
     ConstraintDescription: 'Must be >= 1'
 
   AppASGMaxSize:
     Description: 'Please input min number of App Instance for the Autoscaling Group:'
     Type: Number
-    Default: 1
-    MinValue: 1
+    Default: 3
+    MinValue: 3
+    MaxValue: 6
+    ConstraintDescription: 'Must be >= AppASGMinSize parameter'
+
+  AppASGDesiredSize:
+    Description: 'Please input min number of App Instance for the Autoscaling Group:'
+    Type: Number
+    Default: 2
+    MinValue: 2
     MaxValue: 6
     ConstraintDescription: 'Must be >= AppASGMinSize parameter'
 
@@ -244,7 +258,8 @@ Resources:
     Properties:
       ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", AMIApp]
       InstanceType: !Ref 'AppInstanceType'
-      KeyName: sa-key
+      #  UNCOMMENT IF YOU NEED TO ACCESS THE INSTANCE
+      #KeyName: !Ref 'KeyName'
       InstanceMonitoring: 'false'
       AssociatePublicIpAddress: 'false'
       UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
@@ -267,6 +282,7 @@ Resources:
       - !Ref PrivateSubnetB
       LaunchConfigurationName: !Ref 'AppLaunchConfiguration'
       MinSize: !Ref 'AppASGMinSize'
+      DesiredCapacity: !Ref 'AppASGDesiredSize'
       MaxSize: !Ref 'AppASGMaxSize'
       LoadBalancerNames:
       - !Ref SAelb
@@ -303,8 +319,8 @@ Resources:
       ImageId: !FindInMap [AWSRegion2AMI, !Ref "AWS::Region", AMIBastion]
       InstanceType: !Ref 'BastionInstanceType'
       Monitoring: 'false'
-      KeyName: sa-key
-      #UserData: IyEvYmluL2Jhc2gNCnl1bSB1cGRhdGUgLXkNCnl1bSBpbnN0YWxsIC15IGh0dHBkMjQNCnNlcnZpY2UgaHR0cGQgc3RhcnQNCmNoa2NvbmZpZyBodHRwZCBvbg0KZ3JvdXBhZGQgd3d3DQp1c2VybW9kIC1hIC1HIHd3dyBlYzItdXNlcg0KY2hvd24gLVIgcm9vdDp3d3cgL3Zhci93d3cNCmNobW9kIDI3NzUgL3Zhci93d3cNCmZpbmQgL3Zhci93d3cgLXR5cGUgZCAtZXhlYyBjaG1vZCAyNzc1IHt9ICsNCmZpbmQgL3Zhci93d3cgLXR5cGUgZiAtZXhlYyBjaG1vZCAwNjY0IHt9ICsNCmVjaG8gJzxodG1sPjxoZWFkPjx0aXRsZT5TdWNjZXNzITwvdGl0bGU+PC9oZWFkPjxib2R5PjxpZnJhbWUgd2lkdGg9IjU2MCIgaGVpZ2h0PSIzMTUiIHNyYz0iaHR0cHM6Ly93d3cueW91dHViZS5jb20vZW1iZWQvSnMyMXhLTUZkd3ciIGZyYW1lYm9yZGVyPSIwIiBhbGxvd2Z1bGxzY3JlZW4+PC9pZnJhbWU+PC9ib2R5PjwvaHRtbD4nID4gL3Zhci93d3cvaHRtbC9kZW1vLmh0bWw=
+      #  UNCOMMENT IF YOU NEED TO ACCESS THE INSTANCE
+      #KeyName: !Ref 'KeyName'
       Tags:
       - Key: environment
         Value: sa-assignment
@@ -437,7 +453,7 @@ Resources:
   SANACLEntry2Private:
     Type: AWS::EC2::NetworkAclEntry
     Properties:
-      CidrBlock: 0.0.0.0/0
+      CidrBlock: 10.0.0.0/16
       Protocol: '6'
       PortRange:
         From: '22'
